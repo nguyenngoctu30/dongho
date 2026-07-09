@@ -4,10 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Điều khiển Bảng LED Matrix</title>
+    <title>Điều Khiển Bảng LED Matrix</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
         :root {
             color-scheme: dark;
@@ -21,8 +21,11 @@
             --accent-2: #8dffc2;
             --accent-glow: rgba(47, 212, 133, 0.35);
             --accent-dim: rgba(47, 212, 133, 0.10);
+            --violet: #8b7bff;
+            --violet-glow: rgba(139, 123, 255, 0.30);
             --danger: #ff5c68;
             --danger-glow: rgba(255, 92, 104, 0.30);
+            --warn: #ffb454;
             --text: #eef2f0;
             --muted: #838d96;
             --muted-2: #5b636b;
@@ -64,20 +67,29 @@
             font-family: var(--sans);
             background:
                 radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0) 0 0/22px 22px,
-                radial-gradient(1200px 600px at 15% -10%, rgba(47, 212, 133, 0.06), transparent 60%),
+                radial-gradient(1200px 600px at 15% -10%, rgba(47, 212, 133, 0.07), transparent 60%),
+                radial-gradient(900px 500px at 100% 0%, rgba(139, 123, 255, 0.05), transparent 55%),
                 var(--bg);
             color: var(--text);
             padding: 28px;
             min-height: 100vh;
         }
 
+        .page-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
         h1 {
-            margin: 0 0 20px;
+            margin: 0;
             font-family: var(--mono);
             font-weight: 700;
-            font-size: 22px;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
+            font-size: 21px;
+            letter-spacing: 0.04em;
             color: var(--accent-2);
             display: flex;
             align-items: center;
@@ -90,8 +102,18 @@
             height: 10px;
             border-radius: 50%;
             background: var(--accent);
-            box-shadow: 0 0 8px 2px var(--accent-glow);
+            box-shadow: 0 0 10px 2px var(--accent-glow);
             flex-shrink: 0;
+        }
+
+        h1 span.sub {
+            font-family: var(--sans);
+            font-weight: 500;
+            font-size: 12px;
+            letter-spacing: 0.02em;
+            color: var(--muted);
+            text-transform: none;
+            margin-left: 2px;
         }
 
         h3 {
@@ -100,17 +122,19 @@
             font-weight: 600;
             font-size: 13px;
             letter-spacing: 0.05em;
-            text-transform: uppercase;
             color: var(--text);
             padding-bottom: 10px;
             border-bottom: 1px solid var(--line-soft);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .settings-bar,
         .panel {
             background: linear-gradient(180deg, var(--panel), var(--panel-2));
             border: 1px solid var(--line);
-            border-radius: 14px;
+            border-radius: 16px;
         }
 
         .settings-bar {
@@ -118,9 +142,9 @@
             gap: 22px;
             align-items: end;
             flex-wrap: wrap;
-            padding: 16px 18px;
+            padding: 18px 20px;
             margin-bottom: 18px;
-            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 24px -18px rgba(0, 0, 0, 0.7);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 14px 28px -20px rgba(0, 0, 0, 0.7);
         }
 
         .field {
@@ -133,7 +157,7 @@
             color: var(--muted);
             font-size: 12px;
             font-family: var(--mono);
-            letter-spacing: 0.03em;
+            letter-spacing: 0.02em;
         }
 
         label {
@@ -149,7 +173,7 @@
             background: var(--panel-3);
             color: var(--text);
             border: 1px solid var(--line);
-            border-radius: 8px;
+            border-radius: 9px;
             padding: 9px 11px;
             font-family: var(--sans);
             font-size: 13.5px;
@@ -273,7 +297,7 @@
         button.action,
         button.small,
         .ghost-btn {
-            border-radius: 9px;
+            border-radius: 10px;
             cursor: pointer;
             border: 1px solid var(--line);
             font-family: var(--mono);
@@ -285,8 +309,10 @@
             background: var(--panel);
             color: var(--muted);
             font-size: 12.5px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .tab-btn:hover {
@@ -298,13 +324,13 @@
             background: var(--accent-dim);
             border-color: var(--accent);
             color: var(--accent-2);
-            box-shadow: 0 0 12px -2px var(--accent-glow) inset;
+            box-shadow: 0 0 14px -2px var(--accent-glow) inset;
         }
 
         .panel {
             display: none;
-            padding: 20px;
-            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 14px 30px -22px rgba(0, 0, 0, 0.75);
+            padding: 22px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 16px 34px -22px rgba(0, 0, 0, 0.75);
         }
 
         .panel.active {
@@ -363,7 +389,7 @@
 
         .clock-card {
             border: 1px solid var(--line);
-            border-radius: 12px;
+            border-radius: 13px;
             padding: 10px;
             background: var(--panel-3);
             cursor: pointer;
@@ -372,12 +398,12 @@
 
         .clock-card:hover {
             border-color: #33393f;
-            transform: translateY(-1px);
+            transform: translateY(-2px);
         }
 
         .clock-card.selected {
             border-color: var(--accent);
-            box-shadow: 0 0 0 1px var(--accent-glow) inset, 0 0 16px -4px var(--accent-glow);
+            box-shadow: 0 0 0 1px var(--accent-glow) inset, 0 0 18px -4px var(--accent-glow);
         }
 
         .clock-card p {
@@ -396,17 +422,16 @@
             background: linear-gradient(180deg, var(--accent), #24b56f);
             color: #04140b;
             border-color: #23a366;
-            padding: 11px 20px;
+            padding: 12px 22px;
             font-weight: 600;
             font-size: 12.5px;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            box-shadow: 0 6px 16px -8px var(--accent-glow);
+            letter-spacing: 0.03em;
+            box-shadow: 0 8px 18px -8px var(--accent-glow);
         }
 
         button.action:hover {
             filter: brightness(1.08);
-            box-shadow: 0 6px 20px -6px var(--accent-glow);
+            box-shadow: 0 8px 22px -6px var(--accent-glow);
         }
 
         button.action:active {
@@ -419,7 +444,7 @@
             color: var(--text);
             padding: 9px 14px;
             font-size: 12px;
-            letter-spacing: 0.03em;
+            letter-spacing: 0.02em;
         }
 
         button.small:hover,
@@ -443,18 +468,50 @@
             color: var(--accent-2);
         }
 
-        #status {
+        .status-box {
             margin-top: 18px;
             padding: 13px 16px;
             background: #0c0e11;
             border: 1px solid var(--line);
             border-radius: 12px;
-            white-space: pre-line;
             font-family: var(--mono);
             font-size: 12.5px;
-            color: var(--accent-2);
-            text-shadow: 0 0 10px var(--accent-glow);
             line-height: 1.6;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--muted-2);
+            box-shadow: 0 0 8px 1px transparent;
+        }
+
+        .status-dot.info {
+            background: var(--muted);
+        }
+
+        .status-dot.ok {
+            background: var(--accent);
+            box-shadow: 0 0 8px 1px var(--accent-glow);
+        }
+
+        .status-dot.warn {
+            background: var(--warn);
+            box-shadow: 0 0 8px 1px rgba(255, 180, 84, 0.35);
+        }
+
+        .status-dot.error {
+            background: var(--danger);
+            box-shadow: 0 0 8px 1px var(--danger-glow);
+        }
+
+        .status-text {
+            color: var(--accent-2);
         }
 
         .layout-wrap {
@@ -468,7 +525,7 @@
         .inspector {
             background: var(--panel);
             border: 1px solid var(--line);
-            border-radius: 14px;
+            border-radius: 16px;
             padding: 16px;
         }
 
@@ -533,6 +590,7 @@
             background: rgba(0, 0, 0, 0.8);
             color: var(--accent-2);
             pointer-events: none;
+            z-index: 2;
         }
 
         .layout-item .content {
@@ -567,6 +625,7 @@
             border-radius: 50%;
             cursor: nwse-resize;
             box-shadow: 0 0 0 2px #000, 0 0 8px var(--accent-glow);
+            z-index: 3;
         }
 
         .inspector-grid {
@@ -586,7 +645,7 @@
         #tenWidgetDangChon {
             font-family: var(--mono);
             font-size: 12.5px;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
             color: var(--accent-2);
             background: var(--accent-dim);
             border: 1px solid var(--line);
@@ -612,47 +671,49 @@
 </head>
 
 <body>
-    <h1>Dieu khien Bang LED Matrix</h1>
+    <div class="page-head">
+        <h1>Điều Khiển Bảng LED Matrix <span class="sub">Bảng điều khiển hiển thị</span></h1>
+    </div>
 
     <div class="settings-bar">
         <div class="field">
-            <label for="chonHuong">Huong man hinh</label>
+            <label for="chonHuong">Hướng màn hình</label>
             <select id="chonHuong" onchange="doiHuongManHinh()">
-                <option value="0">Nam ngang (64x32)</option>
-                <option value="1">Dung (32x64)</option>
+                <option value="0">Nằm ngang (64x32)</option>
+                <option value="1">Đứng (32x64)</option>
             </select>
         </div>
         <div class="field">
-            <label for="thoiGianChuyen">Chuyen canh (ms)</label>
+            <label for="thoiGianChuyen">Chuyển cảnh (ms)</label>
             <input type="number" id="thoiGianChuyen" value="300" min="0" max="3000" step="50">
         </div>
         <div class="field">
-            <label for="doSangLed">Do sang LED</label>
+            <label for="doSangLed">Độ sáng LED</label>
             <div class="inline-range">
                 <input type="range" id="doSangLed" min="5" max="255" value="40"
                     oninput="capNhatLabelRange('doSangLed','lblDoSangLed')">
                 <span id="lblDoSangLed">40</span>
             </div>
         </div>
-        <button class="small" onclick="luuCaiDatChung()">Luu cai dat chung</button>
+        <button class="small" onclick="luuCaiDatChung()">Lưu cài đặt chung</button>
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="chuyenTab('anh', event)">Anh tinh</button>
-        <button class="tab-btn" onclick="chuyenTab('gif', event)">GIF dong</button>
-        <button class="tab-btn" onclick="chuyenTab('dongho', event)">Dong ho</button>
-        <button class="tab-btn" onclick="chuyenTab('layout', event)">Bo cuc tu do</button>
+        <button class="tab-btn active" onclick="chuyenTab('anh', event)">🖼️ Ảnh tĩnh</button>
+        <button class="tab-btn" onclick="chuyenTab('gif', event)">🎞️ GIF động</button>
+        <button class="tab-btn" onclick="chuyenTab('dongho', event)">🕒 Đồng hồ</button>
+        <button class="tab-btn" onclick="chuyenTab('layout', event)">🧩 Bố cục tự do</button>
     </div>
 
     <div id="panel-anh" class="panel active">
-        <h3>Gui anh tinh len bang LED</h3>
+        <h3>Gửi ảnh tĩnh lên bảng LED</h3>
         <div class="controls-grid">
             <div class="field">
-                <label for="inputAnh">Chon anh</label>
+                <label for="inputAnh">Chọn ảnh</label>
                 <input type="file" id="inputAnh" accept="image/*">
             </div>
             <div class="field">
-                <label for="anhBrightness">Do sang anh</label>
+                <label for="anhBrightness">Độ sáng ảnh</label>
                 <div class="inline-range">
                     <input type="range" id="anhBrightness" min="40" max="120" value="82"
                         oninput="capNhatLabelRange('anhBrightness','lblAnhBrightness');veLaiAnhTinh()">
@@ -660,7 +721,7 @@
                 </div>
             </div>
             <div class="field">
-                <label for="anhGamma">Gamma lam diu</label>
+                <label for="anhGamma">Gamma làm dịu</label>
                 <div class="inline-range">
                     <input type="range" id="anhGamma" min="80" max="220" value="130"
                         oninput="capNhatLabelRange('anhGamma','lblAnhGamma',100,'x');veLaiAnhTinh()">
@@ -670,19 +731,19 @@
         </div>
         <canvas id="canvasAnhXem" class="preview" width="64" height="32"></canvas>
         <div class="row">
-            <button class="action" onclick="guiAnhTinh()">Chuyen xuong bang LED</button>
+            <button class="action" onclick="guiAnhTinh()">Chuyển xuống bảng LED</button>
         </div>
     </div>
 
     <div id="panel-gif" class="panel">
-        <h3>Gui GIF dong len bang LED</h3>
+        <h3>Gửi GIF động lên bảng LED</h3>
         <div class="controls-grid">
             <div class="field">
-                <label for="inputGif">Chon GIF</label>
+                <label for="inputGif">Chọn GIF</label>
                 <input type="file" id="inputGif" accept="image/gif" multiple>
             </div>
             <div class="field">
-                <label for="gifBrightness">Do sang GIF</label>
+                <label for="gifBrightness">Độ sáng GIF</label>
                 <div class="inline-range">
                     <input type="range" id="gifBrightness" min="40" max="120" value="82"
                         oninput="capNhatLabelRange('gifBrightness','lblGifBrightness')">
@@ -700,47 +761,47 @@
         </div>
         <canvas id="canvasGifXem" class="preview" width="64" height="32"></canvas>
         <p id="gifInfo" class="hint"></p>
-        <button class="action" onclick="guiGifDong()">Chuyen xuong bang LED</button>
+        <button class="action" onclick="guiGifDong()">Chuyển xuống bảng LED</button>
     </div>
 
     <div id="panel-dongho" class="panel">
-        <h3>Chon giao dien dong ho</h3>
+        <h3>Chọn giao diện đồng hồ</h3>
         <div id="clockGrid" class="clock-grid"></div>
         <div class="controls-grid">
             <div class="field">
-                <label for="mauDongHo">Mau dong ho</label>
+                <label for="mauDongHo">Màu đồng hồ</label>
                 <input type="color" id="mauDongHo" value="#00ff88">
             </div>
             <div class="field">
-                <label for="mauNenDongHo">Mau nen</label>
+                <label for="mauNenDongHo">Màu nền</label>
                 <input type="color" id="mauNenDongHo" value="#000000">
             </div>
         </div>
         <div class="row">
-            <label><input type="checkbox" id="hienNgayDuong" checked> Hien ngay duong lich</label>
-            <label><input type="checkbox" id="hienNgayAm" checked> Hien ngay am lich</label>
+            <label><input type="checkbox" id="hienNgayDuong" checked> Hiện ngày dương lịch</label>
+            <label><input type="checkbox" id="hienNgayAm" checked> Hiện ngày âm lịch</label>
         </div>
-        <button class="action" onclick="guiCauHinhDongHo()">Chuyen xuong bang LED</button>
+        <button class="action" onclick="guiCauHinhDongHo()">Chuyển xuống bảng LED</button>
     </div>
 
     <div id="panel-layout" class="panel">
-        <h3>Trinh chinh bo cuc tu do</h3>
-        <p class="hint">Keo tha dong ho, anh, chu vao khung LED. Keo nut goc phai duoi de doi kich thuoc.</p>
+        <h3>Trình chỉnh bố cục tự do</h3>
+        <p class="hint">Kéo thả đồng hồ, ảnh, chữ vào khung LED. Kéo nút ở góc phải dưới để đổi kích thước.</p>
         <div class="layout-wrap">
             <div class="toolbox">
                 <div class="toolbox-actions">
-                    <button class="small" onclick="themHoacChonWidget('clock')">Them/chon dong ho</button>
-                    <button class="small" onclick="themHoacChonWidget('text')">Them/chon chu</button>
+                    <button class="small" onclick="themHoacChonWidget('clock')">🕒 Thêm/chọn đồng hồ</button>
+                    <button class="small" onclick="themHoacChonWidget('text')">🔤 Thêm/chọn chữ</button>
                     <label class="ghost-btn" style="display:inline-flex;align-items:center;gap:8px;">
-                        Tai anh
+                        🖼️ Tải ảnh
                         <input type="file" id="inputLayoutAnh" accept="image/*" class="hidden">
                     </label>
                     <label class="ghost-btn" style="display:inline-flex;align-items:center;gap:8px;">
-                        Tai GIF
+                        🎞️ Tải GIF
                         <input type="file" id="inputLayoutGif" accept="image/gif" multiple class="hidden">
                     </label>
-                    <button class="small" onclick="tuDongCanhBoCuc()">Tu dong canh deu</button>
-                    <button class="small" onclick="xoaWidgetDangChon()">Xoa muc dang chon</button>
+                    <button class="small" onclick="tuDongCanhBoCuc()">📐 Tự động căn đều</button>
+                    <button class="small" onclick="xoaWidgetDangChon()">🗑️ Xóa mục đang chọn</button>
                 </div>
                 <div class="layout-stage-shell">
                     <div id="layoutStage" class="layout-stage">
@@ -751,7 +812,7 @@
             </div>
 
             <div class="inspector">
-                <div id="khongCoMuc" class="hint">Chon mot doi tuong tren khung LED de chinh thuoc tinh.</div>
+                <div id="khongCoMuc" class="hint">Chọn một đối tượng trên khung LED để chỉnh thuộc tính.</div>
                 <div id="bangThuocTinh" class="hidden">
                     <div class="row">
                         <strong id="tenWidgetDangChon">Widget</strong>
@@ -761,7 +822,7 @@
                                 onchange="capNhatTuInspector()"></div>
                         <div class="field"><label for="insY">Y</label><input type="number" id="insY" min="0"
                                 onchange="capNhatTuInspector()"></div>
-                        <div class="field"><label for="insW">Rong</label><input type="number" id="insW" min="1"
+                        <div class="field"><label for="insW">Rộng</label><input type="number" id="insW" min="1"
                                 onchange="capNhatTuInspector()"></div>
                         <div class="field"><label for="insH">Cao</label><input type="number" id="insH" min="1"
                                 onchange="capNhatTuInspector()"></div>
@@ -770,64 +831,64 @@
                     <div id="groupClock" class="hidden">
                         <div class="controls-grid">
                             <div class="field">
-                                <label for="insClockStyle">Kieu dong ho</label>
+                                <label for="insClockStyle">Kiểu đồng hồ</label>
                                 <select id="insClockStyle" onchange="capNhatTuInspector()"></select>
                             </div>
                             <div class="field">
-                                <label for="insClockColor">Mau dong ho</label>
+                                <label for="insClockColor">Màu đồng hồ</label>
                                 <input type="color" id="insClockColor" onchange="capNhatTuInspector()">
                             </div>
                             <div class="field">
-                                <label for="insClockBg">Mau nen dong ho</label>
+                                <label for="insClockBg">Màu nền đồng hồ</label>
                                 <input type="color" id="insClockBg" onchange="capNhatTuInspector()">
                             </div>
                         </div>
                         <div class="row">
-                            <label><input type="checkbox" id="insClockDate" onchange="capNhatTuInspector()"> Hien ngay
-                                duong</label>
-                            <label><input type="checkbox" id="insClockLunar" onchange="capNhatTuInspector()"> Hien ngay
-                                am</label>
+                            <label><input type="checkbox" id="insClockDate" onchange="capNhatTuInspector()"> Hiện ngày
+                                dương</label>
+                            <label><input type="checkbox" id="insClockLunar" onchange="capNhatTuInspector()"> Hiện ngày
+                                âm</label>
                         </div>
                     </div>
 
                     <div id="groupText" class="hidden">
                         <div class="controls-grid">
                             <div class="field">
-                                <label for="insTextContent">Noi dung</label>
+                                <label for="insTextContent">Nội dung</label>
                                 <textarea id="insTextContent" onchange="capNhatTuInspector()"
                                     oninput="capNhatTuInspector()"></textarea>
                             </div>
                             <div class="field">
-                                <label for="insTextColor">Mau chu</label>
+                                <label for="insTextColor">Màu chữ</label>
                                 <input type="color" id="insTextColor" onchange="capNhatTuInspector()">
                             </div>
                             <div class="field">
-                                <label for="insTextBg">Mau nen chu</label>
+                                <label for="insTextBg">Màu nền chữ</label>
                                 <input type="color" id="insTextBg" onchange="capNhatTuInspector()">
                             </div>
                             <div class="field">
-                                <label for="insTextAlign">Can le</label>
+                                <label for="insTextAlign">Căn lề</label>
                                 <select id="insTextAlign" onchange="capNhatTuInspector()">
-                                    <option value="left">Trai</option>
-                                    <option value="center">Giua</option>
-                                    <option value="right">Phai</option>
+                                    <option value="left">Trái</option>
+                                    <option value="center">Giữa</option>
+                                    <option value="right">Phải</option>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="insTextEffect">Hieu ung chu</label>
+                                <label for="insTextEffect">Hiệu ứng chữ</label>
                                 <select id="insTextEffect" onchange="capNhatTuInspector()">
-                                    <option value="static">Tinh</option>
-                                    <option value="scroll-left">Chay ngang trai</option>
-                                    <option value="scroll-right">Chay ngang phai</option>
-                                    <option value="scroll-up">Chay doc len</option>
-                                    <option value="bounce">Qua lai</option>
-                                    <option value="blink">Nhay</option>
-                                    <option value="pulse">Phong sang</option>
-                                    <option value="typewriter">Danh may</option>
+                                    <option value="static">Tĩnh</option>
+                                    <option value="scroll-left">Chạy ngang trái</option>
+                                    <option value="scroll-right">Chạy ngang phải</option>
+                                    <option value="scroll-up">Chạy dọc lên</option>
+                                    <option value="bounce">Qua lại</option>
+                                    <option value="blink">Nhấp nháy</option>
+                                    <option value="pulse">Phóng sáng</option>
+                                    <option value="typewriter">Đánh máy</option>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="insTextSpeed">Toc do</label>
+                                <label for="insTextSpeed">Tốc độ</label>
                                 <div class="inline-range">
                                     <input type="range" id="insTextSpeed" min="1" max="10" value="4"
                                         oninput="capNhatLabelRange('insTextSpeed','lblInsTextSpeed',1,'');capNhatTuInspector()">
@@ -840,7 +901,7 @@
                     <div id="groupImage" class="hidden">
                         <div class="controls-grid">
                             <div class="field">
-                                <label for="insImageBrightness">Do sang anh</label>
+                                <label for="insImageBrightness">Độ sáng ảnh</label>
                                 <div class="inline-range">
                                     <input type="range" id="insImageBrightness" min="40" max="120" value="82"
                                         oninput="capNhatLabelRange('insImageBrightness','lblInsImageBrightness');capNhatTuInspector()">
@@ -848,7 +909,7 @@
                                 </div>
                             </div>
                             <div class="field">
-                                <label for="insImageGamma">Gamma anh</label>
+                                <label for="insImageGamma">Gamma ảnh</label>
                                 <div class="inline-range">
                                     <input type="range" id="insImageGamma" min="80" max="220" value="130"
                                         oninput="capNhatLabelRange('insImageGamma','lblInsImageGamma',100,'x');capNhatTuInspector()">
@@ -860,13 +921,16 @@
                 </div>
 
                 <div class="row" style="margin-top:14px;">
-                    <button class="action" onclick="guiBoCucTuDo()">Gui bo cuc len bang LED</button>
+                    <button class="action" onclick="guiBoCucTuDo()">Gửi bố cục lên bảng LED</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="status">Dang ket noi MQTT...</div>
+    <div id="status" class="status-box">
+        <span class="status-dot info"></span>
+        <span class="status-text">Đang khởi động...</span>
+    </div>
 
     <script>
         let gifuctLib = null;
@@ -954,7 +1018,7 @@
                     type: "text",
                     visible: false,
                     x: Math.max(2, Math.floor(W / 2) - 12), y: Math.max(2, H - 10), w: Math.min(24, W - 4), h: 8,
-                    text: "Xin chao",
+                    text: "Xin chào",
                     color: "#ffffff",
                     bgColor: "#000000",
                     align: "center",
@@ -979,7 +1043,7 @@
         };
 
         client.on("connect", () => {
-            setStatus("Da ket noi MQTT (broker.hivemq.com)");
+            setStatus("Sẵn sàng điều khiển bảng LED", "ok");
             client.subscribe(T_GIF_ACK);
         });
         client.on("message", (topic, message) => {
@@ -987,11 +1051,13 @@
                 ackNhanDuoc = (message[0] << 8) | message[1];
             }
         });
-        client.on("error", (err) => setStatus("Loi MQTT: " + err));
-        client.on("close", () => setStatus("Mat ket noi, dang thu lai..."));
+        client.on("error", (err) => setStatus("Có lỗi kết nối: " + err, "error"));
+        client.on("close", () => setStatus("Mất kết nối, đang thử lại...", "warn"));
 
-        function setStatus(msg) {
-            document.getElementById("status").innerText = msg;
+        function setStatus(msg, kind = "info") {
+            const box = document.getElementById("status");
+            box.querySelector(".status-text").innerText = msg;
+            box.querySelector(".status-dot").className = "status-dot " + kind;
         }
 
         function capNhatLabelRange(inputId, labelId, divisor = 1, suffix = "%") {
@@ -1003,7 +1069,7 @@
             document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
             document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
             document.getElementById("panel-" + ten).classList.add("active");
-            evt.target.classList.add("active");
+            evt.currentTarget.classList.add("active");
         }
 
         function doiHuongManHinh() {
@@ -1014,7 +1080,7 @@
             damBaoWidgetNamTrongKhung();
             renderLayoutEditor();
             if (anhNguonTinh) veLaiAnhTinh();
-            setStatus(`Da doi huong xem truoc sang ${W}x${H}. Bam "Luu cai dat chung" de gui len bang.`);
+            setStatus(`Đã đổi hướng xem trước sang ${W}x${H}. Bấm "Lưu cài đặt chung" để gửi lên bảng.`, "info");
         }
 
         function capNhatKichThuocCanvas() {
@@ -1036,7 +1102,7 @@
             client.publish(T_ORIENT, huong, { retain: true });
             client.publish(T_TRANS, String(chuyenCanh), { retain: true });
             client.publish(T_BRIGHTNESS, String(doSang), { retain: true });
-            setStatus(`Da luu huong=${huong === "1" ? "Dung" : "Nam ngang"}, chuyen=${chuyenCanh}ms, do sang LED=${doSang}`);
+            setStatus(`Đã lưu hướng=${huong === "1" ? "Đứng" : "Nằm ngang"}, chuyển cảnh=${chuyenCanh}ms, độ sáng LED=${doSang}`, "ok");
         }
 
         function canvasToRGB565(ctx, wCanvas = W, hCanvas = H) {
@@ -1104,22 +1170,22 @@
         function guiAnhTinh() {
             baoHieuDangDieuKhien();
             if (!anhNguonTinh) {
-                alert("Vui long chon anh truoc.");
+                alert("Vui lòng chọn ảnh trước.");
                 return;
             }
             const buf = canvasToRGB565(ctxAnh);
             client.publish(T_MODE, "image");
             client.publish(T_IMAGE, buf);
-            setStatus(`Da gui anh tinh (${buf.length} byte). Anh da duoc lam diu de tranh qua sang.`);
+            setStatus(`Đã gửi ảnh tĩnh (${buf.length} byte). Ảnh đã được làm dịu để tránh quá sáng.`, "ok");
         }
 
         async function giaiMaDanhSachGif(files) {
             if (!gifuctLib) {
-                document.getElementById("gifInfo").innerText = "Thu vien GIF chua tai xong, vui long doi them mot chut.";
+                document.getElementById("gifInfo").innerText = "Thư viện GIF chưa tải xong, vui lòng đợi thêm một chút.";
                 return;
             }
             if (!files || files.length === 0) return;
-            document.getElementById("gifInfo").innerText = `Dang giai ma ${files.length} GIF...`;
+            document.getElementById("gifInfo").innerText = `Đang giải mã ${files.length} GIF...`;
             nguonFrameGifCanvas = [];
             let tongDelay = 0;
             for (const file of files) {
@@ -1147,7 +1213,7 @@
             }
             gifDelay = Math.round(tongDelay / Math.max(1, nguonFrameGifCanvas.length));
             taoFrameGifDaXuLy();
-            document.getElementById("gifInfo").innerText = `Da giai ma ${nguonFrameGifCanvas.length} khung tu ${files.length} GIF, delay TB ${gifDelay}ms.`;
+            document.getElementById("gifInfo").innerText = `Đã giải mã ${nguonFrameGifCanvas.length} khung từ ${files.length} GIF, độ trễ trung bình ${gifDelay}ms.`;
         }
 
         function taoFrameGifDaXuLy() {
@@ -1193,7 +1259,7 @@
         async function guiGifDong() {
             baoHieuDangDieuKhien();
             if (danhSachFrameGif.length === 0) {
-                alert("Vui long chon GIF truoc.");
+                alert("Vui lòng chọn GIF trước.");
                 return;
             }
             client.publish(T_MODE, "gif");
@@ -1211,12 +1277,12 @@
                 payload.set(frameData, 2);
                 const ok = await guiKhungCoXacNhan(i, payload);
                 if (!ok) soLoi++;
-                setStatus(`Dang gui GIF ${i + 1}/${danhSachFrameGif.length}${soLoi ? `, loi ${soLoi} khung` : ""}`);
+                setStatus(`Đang gửi GIF ${i + 1}/${danhSachFrameGif.length}${soLoi ? `, lỗi ${soLoi} khung` : ""}`, "info");
             }
 
             baoHieuDangDieuKhien();
             client.publish(T_GIF_DONE, "");
-            setStatus(soLoi === 0 ? "Da gui xong GIF." : `Gui xong GIF nhung co ${soLoi} khung chua ACK.`);
+            setStatus(soLoi === 0 ? "Đã gửi xong GIF." : `Gửi xong GIF nhưng có ${soLoi} khung chưa được xác nhận.`, soLoi === 0 ? "ok" : "warn");
         }
 
         function guiCauHinhDongHo() {
@@ -1229,7 +1295,7 @@
                 showDate: document.getElementById("hienNgayDuong").checked,
                 showLunar: document.getElementById("hienNgayAm").checked
             }));
-            setStatus(`Da gui giao dien dong ho: ${kieuDongHoChon}`);
+            setStatus(`Đã gửi giao diện đồng hồ: ${kieuDongHoChon}`, "ok");
         }
 
         function renderClockCards() {
@@ -1396,10 +1462,10 @@
             const overlapIds = timDanhSachChongLen();
             const label = document.getElementById("layoutWarning");
             if (overlapIds.size > 0) {
-                label.innerText = `Canh bao: co ${overlapIds.size} doi tuong dang de len nhau. Bam "Tu dong canh deu" de sap xep nhanh.`;
+                label.innerText = `Cảnh báo: có ${overlapIds.size} đối tượng đang đè lên nhau. Bấm "Tự động căn đều" để sắp xếp nhanh.`;
                 label.style.color = "#ff8f8f";
             } else {
-                label.innerText = "Bo cuc tot: khong co doi tuong de len nhau.";
+                label.innerText = "Bố cục tốt: không có đối tượng đè lên nhau.";
                 label.style.color = "#89d2a8";
             }
             return overlapIds;
@@ -1431,7 +1497,7 @@
             }
             damBaoWidgetNamTrongKhung();
             renderLayoutEditor();
-            setStatus("Da tu dong canh deu bo cuc de giam de len nhau.");
+            setStatus("Đã tự động căn đều bố cục để giảm đè lên nhau.", "ok");
         }
 
         function renderLayoutEditor() {
@@ -1479,11 +1545,20 @@
                         content.appendChild(img);
                     }
                 } else if (widget.type === "clock") {
-                    content.innerHTML = `<div>${widget.style}<br>${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}</div>`;
+                    // Sửa lỗi: dùng đúng màu chữ và màu nền đã chọn cho widget đồng hồ
+                    content.style.background = widget.bgColor || "transparent";
+                    const nhanKieu = clockStyles.find(s => s.id === widget.style)?.label || widget.style;
+                    const gio = String(new Date().getHours()).padStart(2, "0");
+                    const phut = String(new Date().getMinutes()).padStart(2, "0");
+                    content.innerHTML = `<div style="color:${widget.color || '#00ff88'};line-height:1.3;">
+                        <strong>${nhanKieu}</strong><br>${gio}:${phut}
+                    </div>`;
                 } else {
+                    content.style.background = widget.bgColor || "transparent";
+                    content.style.color = widget.color || "#ffffff";
                     content.textContent = widget.type === "text"
-                        ? `${widget.text || "Text"}${widget.effect !== "static" ? ` (${widget.effect})` : ""}`
-                        : "Media";
+                        ? `${widget.text || "Chữ"}${widget.effect !== "static" ? ` (${widget.effect})` : ""}`
+                        : "Chưa có ảnh";
                 }
                 el.appendChild(content);
 
@@ -1600,7 +1675,8 @@
             if (!id) return;
 
             const widget = layoutState.widgets[id];
-            document.getElementById("tenWidgetDangChon").innerText = widget.type.toUpperCase();
+            const tenHienThi = { clock: "ĐỒNG HỒ", text: "CHỮ", image: "ẢNH / GIF" };
+            document.getElementById("tenWidgetDangChon").innerText = tenHienThi[widget.type] || widget.type.toUpperCase();
             document.getElementById("insX").value = widget.x;
             document.getElementById("insY").value = widget.y;
             document.getElementById("insW").value = widget.w;
@@ -1684,7 +1760,7 @@
             const files = Array.from(e.target.files || []);
             if (!files.length) return;
             if (!gifuctLib) {
-                alert("Thu vien GIF chua tai xong.");
+                alert("Thư viện GIF chưa tải xong.");
                 return;
             }
             const widget = layoutState.widgets.image;
@@ -1724,7 +1800,7 @@
             widget.visible = true;
             layoutState.selectedId = widget.id;
             renderLayoutEditor();
-            setStatus(`GIF bo cuc: ghep ${files.length} GIF, ${widget.gifFramesRaw.length} khung, delay ${widget.gifDelay}ms`);
+            setStatus(`GIF bố cục: ghép ${files.length} GIF, ${widget.gifFramesRaw.length} khung, độ trễ ${widget.gifDelay}ms`, "ok");
         });
 
         async function guiBoCucTuDo() {
@@ -1797,7 +1873,7 @@
                 }
             }
 
-            setStatus("Da gui bo cuc tu do len bang LED.");
+            setStatus("Đã gửi bố cục tự do lên bảng LED.", "ok");
         }
 
         function napLuaChonClockVaoInspector() {
