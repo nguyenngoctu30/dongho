@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều khiển Bảng LED Matrix</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --panel: #181818;
+            --panel-2: #222;
+            --line: #333;
+            --accent: #00c46a;
+            --accent-2: #62ff9d;
+            --text: #eee;
+            --muted: #9aa0a6;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: var(--text);
+            padding: 20px;
+        }
+
+        h1 {
+            margin: 0 0 18px;
+            color: var(--accent-2);
+        }
+
+        h3 {
+            margin-top: 0;
+        }
+
+        .settings-bar,
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+        }
+
+        .settings-bar {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+            flex-wrap: wrap;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        }
+
+        .field {
+            min-width: 140px;
+        }
+
+        label,
+        .field-title,
+        .hint {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="range"],
+        select,
+        textarea {
+            width: 100%;
+            background: var(--panel-2);
+            color: var(--text);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+
+        textarea {
+            min-height: 74px;
+            resize: vertical;
+        }
+
+        input[type="color"] {
+            width: 56px;
+            height: 36px;
+            padding: 0;
+            border: none;
+            background: transparent;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn,
+        button.action,
+        button.small,
+        .ghost-btn {
+            border-radius: 10px;
+            cursor: pointer;
+            border: 1px solid #444;
+        }
+
+        .tab-btn {
+            padding: 10px 16px;
+            background: var(--panel-2);
+            color: var(--text);
+        }
+
+        .tab-btn.active {
+            background: #093;
+            border-color: var(--accent-2);
+        }
+
+        .panel {
+            display: none;
+            padding: 18px;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .controls-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            margin: 14px 0;
+        }
+
+        .preview {
+            image-rendering: pixelated;
+            background: #000;
+            border: 2px solid #444;
+            border-radius: 10px;
+        }
+
+        .clock-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .clock-card {
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 10px;
+            background: #151515;
+            cursor: pointer;
+        }
+
+        .clock-card.selected {
+            border-color: var(--accent-2);
+            box-shadow: 0 0 0 1px rgba(98, 255, 157, 0.25) inset;
+        }
+
+        .clock-card p {
+            margin: 8px 0 0;
+            text-align: center;
+        }
+
+        button.action {
+            background: var(--accent);
+            color: #fff;
+            border-color: #0b8f53;
+            padding: 10px 18px;
+        }
+
+        button.small,
+        .ghost-btn {
+            background: #2a2a2a;
+            color: var(--text);
+            padding: 8px 12px;
+        }
+
+        .inline-range {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .inline-range span {
+            min-width: 42px;
+            text-align: right;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        #status {
+            margin-top: 16px;
+            padding: 12px 14px;
+            background: #202020;
+            border-radius: 12px;
+            white-space: pre-line;
+        }
+
+        .layout-wrap {
+            display: grid;
+            grid-template-columns: minmax(340px, 560px) 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .toolbox,
+        .inspector {
+            background: #141414;
+            border: 1px solid #2f2f2f;
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .toolbox-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .layout-stage-shell {
+            overflow: auto;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #2e2e2e;
+            background: #0c0c0c;
+        }
+
+        .layout-stage {
+            position: relative;
+            background: #000;
+            transform-origin: top left;
+            image-rendering: pixelated;
+            border: 2px solid #404040;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .layout-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .layout-item {
+            position: absolute;
+            border: 1px dashed rgba(255, 255, 255, 0.55);
+            background: rgba(0, 196, 106, 0.09);
+            user-select: none;
+        }
+
+        .layout-item.selected {
+            border: 1px solid var(--accent-2);
+            box-shadow: 0 0 0 1px rgba(98, 255, 157, 0.25) inset;
+        }
+
+        .layout-item.overlap {
+            border-color: #ff5252;
+            box-shadow: 0 0 0 1px rgba(255, 82, 82, 0.35) inset;
+            background: rgba(255, 82, 82, 0.12);
+        }
+
+        .layout-item .badge {
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 1px 4px;
+            font-size: 10px;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            pointer-events: none;
+        }
+
+        .layout-item .content {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            font-size: 11px;
+            text-align: center;
+            line-height: 1.15;
+            color: #e7ffe7;
+        }
+
+        .layout-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            image-rendering: pixelated;
+            display: block;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            right: -4px;
+            bottom: -4px;
+            background: var(--accent-2);
+            border-radius: 50%;
+            cursor: nwse-resize;
+        }
+
+        .inspector-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 980px) {
+            .layout-wrap {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Dieu khien Bang LED Matrix</h1>
+
+    <div class="settings-bar">
+        <div class="field">
+            <label for="chonHuong">Huong man hinh</label>
+            <select id="chonHuong" onchange="doiHuongManHinh()">
+                <option value="0">Nam ngang (64x32)</option>
+                <option value="1">Dung (32x64)</option>
+            </select>
+        </div>
+        <div class="field">
+            <label for="thoiGianChuyen">Chuyen canh (ms)</label>
+            <input type="number" id="thoiGianChuyen" value="300" min="0" max="3000" step="50">
+        </div>
+        <div class="field">
+            <label for="doSangLed">Do sang LED</label>
+            <div class="inline-range">
+                <input type="range" id="doSangLed" min="5" max="255" value="40"
+                    oninput="capNhatLabelRange('doSangLed','lblDoSangLed')">
+                <span id="lblDoSangLed">40</span>
+            </div>
+        </div>
+        <button class="small" onclick="luuCaiDatChung()">Luu cai dat chung</button>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="chuyenTab('anh', event)">Anh tinh</button>
+        <button class="tab-btn" onclick="chuyenTab('gif', event)">GIF dong</button>
+        <button class="tab-btn" onclick="chuyenTab('dongho', event)">Dong ho</button>
+        <button class="tab-btn" onclick="chuyenTab('layout', event)">Bo cuc tu do</button>
+    </div>
+
+    <div id="panel-anh" class="panel active">
+        <h3>Gui anh tinh len bang LED</h3>
+        <div class="controls-grid">
+            <div class="field">
+                <label for="inputAnh">Chon anh</label>
+                <input type="file" id="inputAnh" accept="image/*">
+            </div>
+            <div class="field">
+                <label for="anhBrightness">Do sang anh</label>
+                <div class="inline-range">
+                    <input type="range" id="anhBrightness" min="40" max="120" value="82"
+                        oninput="capNhatLabelRange('anhBrightness','lblAnhBrightness');veLaiAnhTinh()">
+                    <span id="lblAnhBrightness">82%</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="anhGamma">Gamma lam diu</label>
+                <div class="inline-range">
+                    <input type="range" id="anhGamma" min="80" max="220" value="130"
+                        oninput="capNhatLabelRange('anhGamma','lblAnhGamma',100,'x');veLaiAnhTinh()">
+                    <span id="lblAnhGamma">1.30x</span>
+                </div>
+            </div>
+        </div>
+        <canvas id="canvasAnhXem" class="preview" width="64" height="32"></canvas>
+        <div class="row">
+            <button class="action" onclick="guiAnhTinh()">Chuyen xuong bang LED</button>
+        </div>
+    </div>
+
+    <div id="panel-gif" class="panel">
+        <h3>Gui GIF dong len bang LED</h3>
+        <div class="controls-grid">
+            <div class="field">
+                <label for="inputGif">Chon GIF</label>
+                <input type="file" id="inputGif" accept="image/gif" multiple>
+            </div>
+            <div class="field">
+                <label for="gifBrightness">Do sang GIF</label>
+                <div class="inline-range">
+                    <input type="range" id="gifBrightness" min="40" max="120" value="82"
+                        oninput="capNhatLabelRange('gifBrightness','lblGifBrightness')">
+                    <span id="lblGifBrightness">82%</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="gifGamma">Gamma GIF</label>
+                <div class="inline-range">
+                    <input type="range" id="gifGamma" min="80" max="220" value="130"
+                        oninput="capNhatLabelRange('gifGamma','lblGifGamma',100,'x')">
+                    <span id="lblGifGamma">1.30x</span>
+                </div>
+            </div>
+        </div>
+        <canvas id="canvasGifXem" class="preview" width="64" height="32"></canvas>
+        <p id="gifInfo" class="hint"></p>
+        <button class="action" onclick="guiGifDong()">Chuyen xuong bang LED</button>
+    </div>
+
+    <div id="panel-dongho" class="panel">
+        <h3>Chon giao dien dong ho</h3>
+        <div id="clockGrid" class="clock-grid"></div>
+        <div class="controls-grid">
+            <div class="field">
+                <label for="mauDongHo">Mau dong ho</label>
+                <input type="color" id="mauDongHo" value="#00ff88">
+            </div>
+            <div class="field">
+                <label for="mauNenDongHo">Mau nen</label>
+                <input type="color" id="mauNenDongHo" value="#000000">
+            </div>
+        </div>
+        <div class="row">
+            <label><input type="checkbox" id="hienNgayDuong" checked> Hien ngay duong lich</label>
+            <label><input type="checkbox" id="hienNgayAm" checked> Hien ngay am lich</label>
+        </div>
+        <button class="action" onclick="guiCauHinhDongHo()">Chuyen xuong bang LED</button>
+    </div>
+
+    <div id="panel-layout" class="panel">
+        <h3>Trinh chinh bo cuc tu do</h3>
+        <p class="hint">Keo tha dong ho, anh, chu vao khung LED. Keo nut goc phai duoi de doi kich thuoc.</p>
+        <div class="layout-wrap">
+            <div class="toolbox">
+                <div class="toolbox-actions">
+                    <button class="small" onclick="themHoacChonWidget('clock')">Them/chon dong ho</button>
+                    <button class="small" onclick="themHoacChonWidget('text')">Them/chon chu</button>
+                    <label class="ghost-btn" style="display:inline-flex;align-items:center;gap:8px;">
+                        Tai anh
+                        <input type="file" id="inputLayoutAnh" accept="image/*" class="hidden">
+                    </label>
+                    <label class="ghost-btn" style="display:inline-flex;align-items:center;gap:8px;">
+                        Tai GIF
+                        <input type="file" id="inputLayoutGif" accept="image/gif" multiple class="hidden">
+                    </label>
+                    <button class="small" onclick="tuDongCanhBoCuc()">Tu dong canh deu</button>
+                    <button class="small" onclick="xoaWidgetDangChon()">Xoa muc dang chon</button>
+                </div>
+                <div class="layout-stage-shell">
+                    <div id="layoutStage" class="layout-stage">
+                        <canvas id="layoutBg" class="layout-bg" width="64" height="32"></canvas>
+                    </div>
+                </div>
+                <p id="layoutWarning" class="hint" style="margin:8px 0 0;"></p>
+            </div>
+
+            <div class="inspector">
+                <div id="khongCoMuc" class="hint">Chon mot doi tuong tren khung LED de chinh thuoc tinh.</div>
+                <div id="bangThuocTinh" class="hidden">
+                    <div class="row">
+                        <strong id="tenWidgetDangChon">Widget</strong>
+                    </div>
+                    <div class="inspector-grid">
+                        <div class="field"><label for="insX">X</label><input type="number" id="insX" min="0"
+                                onchange="capNhatTuInspector()"></div>
+                        <div class="field"><label for="insY">Y</label><input type="number" id="insY" min="0"
+                                onchange="capNhatTuInspector()"></div>
+                        <div class="field"><label for="insW">Rong</label><input type="number" id="insW" min="1"
+                                onchange="capNhatTuInspector()"></div>
+                        <div class="field"><label for="insH">Cao</label><input type="number" id="insH" min="1"
+                                onchange="capNhatTuInspector()"></div>
+                    </div>
+
+                    <div id="groupClock" class="hidden">
+                        <div class="controls-grid">
+                            <div class="field">
+                                <label for="insClockStyle">Kieu dong ho</label>
+                                <select id="insClockStyle" onchange="capNhatTuInspector()"></select>
+                            </div>
+                            <div class="field">
+                                <label for="insClockColor">Mau dong ho</label>
+                                <input type="color" id="insClockColor" onchange="capNhatTuInspector()">
+                            </div>
+                            <div class="field">
+                                <label for="insClockBg">Mau nen dong ho</label>
+                                <input type="color" id="insClockBg" onchange="capNhatTuInspector()">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <label><input type="checkbox" id="insClockDate" onchange="capNhatTuInspector()"> Hien ngay
+                                duong</label>
+                            <label><input type="checkbox" id="insClockLunar" onchange="capNhatTuInspector()"> Hien ngay
+                                am</label>
+                        </div>
+                    </div>
+
+                    <div id="groupText" class="hidden">
+                        <div class="controls-grid">
+                            <div class="field">
+                                <label for="insTextContent">Noi dung</label>
+                                <textarea id="insTextContent" onchange="capNhatTuInspector()"
+                                    oninput="capNhatTuInspector()"></textarea>
+                            </div>
+                            <div class="field">
+                                <label for="insTextColor">Mau chu</label>
+                                <input type="color" id="insTextColor" onchange="capNhatTuInspector()">
+                            </div>
+                            <div class="field">
+                                <label for="insTextBg">Mau nen chu</label>
+                                <input type="color" id="insTextBg" onchange="capNhatTuInspector()">
+                            </div>
+                            <div class="field">
+                                <label for="insTextAlign">Can le</label>
+                                <select id="insTextAlign" onchange="capNhatTuInspector()">
+                                    <option value="left">Trai</option>
+                                    <option value="center">Giua</option>
+                                    <option value="right">Phai</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="insTextEffect">Hieu ung chu</label>
+                                <select id="insTextEffect" onchange="capNhatTuInspector()">
+                                    <option value="static">Tinh</option>
+                                    <option value="scroll-left">Chay ngang trai</option>
+                                    <option value="scroll-right">Chay ngang phai</option>
+                                    <option value="scroll-up">Chay doc len</option>
+                                    <option value="bounce">Qua lai</option>
+                                    <option value="blink">Nhay</option>
+                                    <option value="pulse">Phong sang</option>
+                                    <option value="typewriter">Danh may</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="insTextSpeed">Toc do</label>
+                                <div class="inline-range">
+                                    <input type="range" id="insTextSpeed" min="1" max="10" value="4"
+                                        oninput="capNhatLabelRange('insTextSpeed','lblInsTextSpeed',1,'');capNhatTuInspector()">
+                                    <span id="lblInsTextSpeed">4</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="groupImage" class="hidden">
+                        <div class="controls-grid">
+                            <div class="field">
+                                <label for="insImageBrightness">Do sang anh</label>
+                                <div class="inline-range">
+                                    <input type="range" id="insImageBrightness" min="40" max="120" value="82"
+                                        oninput="capNhatLabelRange('insImageBrightness','lblInsImageBrightness');capNhatTuInspector()">
+                                    <span id="lblInsImageBrightness">82%</span>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label for="insImageGamma">Gamma anh</label>
+                                <div class="inline-range">
+                                    <input type="range" id="insImageGamma" min="80" max="220" value="130"
+                                        oninput="capNhatLabelRange('insImageGamma','lblInsImageGamma',100,'x');capNhatTuInspector()">
+                                    <span id="lblInsImageGamma">1.30x</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top:14px;">
+                    <button class="action" onclick="guiBoCucTuDo()">Gui bo cuc len bang LED</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status">Dang ket noi MQTT...</div>
+
+    <script>
+        let gifuctLib = null;
+        (async () => {
+            try {
+                gifuctLib = await import("https://esm.sh/gifuct-js@2.1.2");
+            } catch (err) {
+                console.error("Khong tai duoc gifuct-js:", err);
+            }
+        })();
+
+        let W = 64, H = 32;
+        const SCALE = 8;
+        const TOPIC_PREFIX = "hcm_led_matrix_9f3a2b";
+        const T_MODE = TOPIC_PREFIX + "/mode";
+        const T_IMAGE = TOPIC_PREFIX + "/image";
+        const T_GIF_META = TOPIC_PREFIX + "/gif/meta";
+        const T_GIF_FRAME = TOPIC_PREFIX + "/gif/frame";
+        const T_GIF_DONE = TOPIC_PREFIX + "/gif/done";
+        const T_GIF_ACK = TOPIC_PREFIX + "/gif/ack";
+        const T_CLOCK_CFG = TOPIC_PREFIX + "/clock/config";
+        const T_ORIENT = TOPIC_PREFIX + "/orient";
+        const T_TRANS = TOPIC_PREFIX + "/transition";
+        const T_BRIGHTNESS = TOPIC_PREFIX + "/brightness";
+        const T_LAYOUT_CFG = TOPIC_PREFIX + "/layout/config";
+        const T_LAYOUT_IMG = TOPIC_PREFIX + "/layout/image";
+        const T_LAYOUT_GIF_META = TOPIC_PREFIX + "/layout/gif/meta";
+        const T_LAYOUT_GIF_FRAME = TOPIC_PREFIX + "/layout/gif/frame";
+        const T_LAYOUT_GIF_DONE = TOPIC_PREFIX + "/layout/gif/done";
+        const T_LIVE_PING = TOPIC_PREFIX + "/live";
+
+        const client = mqtt.connect("wss://broker.hivemq.com:8884/mqtt", {
+            clientId: "webclient_" + Math.random().toString(16).slice(2),
+            reconnectPeriod: 3000
+        });
+
+        // Gui "tin hieu song" de ESP32 biet day la lenh that, khong phai
+        // tin nhan retained cu bi broker phat lai luc reconnect.
+        function baoHieuDangDieuKhien() {
+            client.publish(T_LIVE_PING, String(Date.now()));
+        }
+
+        const clockStyles = [
+            { id: "digital", label: "Digital" },
+            { id: "boxed", label: "Boxed" },
+            { id: "compact", label: "Compact" },
+            { id: "minimal", label: "Minimal" },
+            { id: "analog", label: "Analog" },
+            { id: "neon", label: "Neon" },
+            { id: "metro", label: "Metro" },
+            { id: "ring", label: "Ring" },
+            { id: "monthsplit", label: "Month Split" }
+        ];
+
+        let ackNhanDuoc = -1;
+        let kieuDongHoChon = "boxed";
+        let anhNguonTinh = null;
+        let danhSachFrameGif = [];
+        let nguonFrameGifCanvas = [];
+        let gifDelay = 100;
+
+        const canvasAnh = document.getElementById("canvasAnhXem");
+        const ctxAnh = canvasAnh.getContext("2d", { willReadFrequently: true });
+        const canvasGif = document.getElementById("canvasGifXem");
+        const ctxGif = canvasGif.getContext("2d", { willReadFrequently: true });
+        const layoutBg = document.getElementById("layoutBg");
+        const layoutBgCtx = layoutBg.getContext("2d", { willReadFrequently: true });
+        const layoutStage = document.getElementById("layoutStage");
+
+        const layoutState = {
+            selectedId: null,
+            dragging: null,
+            widgets: {
+                clock: {
+                    id: "clock",
+                    type: "clock",
+                    visible: true,
+                    x: 2, y: 2, w: Math.min(30, W - 4), h: Math.min(20, H - 4),
+                    style: "boxed",
+                    color: "#00ff88",
+                    bgColor: "#00140c",
+                    showDate: true,
+                    showLunar: false
+                },
+                text: {
+                    id: "text",
+                    type: "text",
+                    visible: false,
+                    x: Math.max(2, Math.floor(W / 2) - 12), y: Math.max(2, H - 10), w: Math.min(24, W - 4), h: 8,
+                    text: "Xin chao",
+                    color: "#ffffff",
+                    bgColor: "#000000",
+                    align: "center",
+                    effect: "static",
+                    speed: 4
+                },
+                image: {
+                    id: "image",
+                    type: "image",
+                    visible: false,
+                    x: Math.max(2, W - 26), y: 2, w: Math.min(24, W - 4), h: Math.min(20, H - 4),
+                    brightness: 82,
+                    gamma: 130,
+                    source: null,
+                    mediaType: "image",
+                    gifFramesRaw: [],
+                    gifDelay: 100,
+                    gifPreviewIndex: 0,
+                    gifPreviewLastMs: 0
+                }
+            }
+        };
+
+        client.on("connect", () => {
+            setStatus("Da ket noi MQTT (broker.hivemq.com)");
+            client.subscribe(T_GIF_ACK);
+        });
+        client.on("message", (topic, message) => {
+            if (topic === T_GIF_ACK && message.length >= 2) {
+                ackNhanDuoc = (message[0] << 8) | message[1];
+            }
+        });
+        client.on("error", (err) => setStatus("Loi MQTT: " + err));
+        client.on("close", () => setStatus("Mat ket noi, dang thu lai..."));
+
+        function setStatus(msg) {
+            document.getElementById("status").innerText = msg;
+        }
+
+        function capNhatLabelRange(inputId, labelId, divisor = 1, suffix = "%") {
+            const value = Number(document.getElementById(inputId).value);
+            document.getElementById(labelId).innerText = divisor === 1 ? `${value}${suffix}` : `${(value / divisor).toFixed(2)}${suffix}`;
+        }
+
+        function chuyenTab(ten, evt) {
+            document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.getElementById("panel-" + ten).classList.add("active");
+            evt.target.classList.add("active");
+        }
+
+        function doiHuongManHinh() {
+            const huong = document.getElementById("chonHuong").value;
+            if (huong === "1") { W = 32; H = 64; } else { W = 64; H = 32; }
+            capNhatKichThuocCanvas();
+            renderClockCards();
+            damBaoWidgetNamTrongKhung();
+            renderLayoutEditor();
+            if (anhNguonTinh) veLaiAnhTinh();
+            setStatus(`Da doi huong xem truoc sang ${W}x${H}. Bam "Luu cai dat chung" de gui len bang.`);
+        }
+
+        function capNhatKichThuocCanvas() {
+            [canvasAnh, canvasGif, layoutBg].forEach(c => {
+                c.width = W;
+                c.height = H;
+                c.style.width = `${W * 5}px`;
+                c.style.height = `${H * 5}px`;
+            });
+            layoutStage.style.width = `${W * SCALE}px`;
+            layoutStage.style.height = `${H * SCALE}px`;
+        }
+
+        function luuCaiDatChung() {
+            baoHieuDangDieuKhien();
+            const huong = document.getElementById("chonHuong").value;
+            const chuyenCanh = document.getElementById("thoiGianChuyen").value || "0";
+            const doSang = document.getElementById("doSangLed").value || "40";
+            client.publish(T_ORIENT, huong, { retain: true });
+            client.publish(T_TRANS, String(chuyenCanh), { retain: true });
+            client.publish(T_BRIGHTNESS, String(doSang), { retain: true });
+            setStatus(`Da luu huong=${huong === "1" ? "Dung" : "Nam ngang"}, chuyen=${chuyenCanh}ms, do sang LED=${doSang}`);
+        }
+
+        function canvasToRGB565(ctx, wCanvas = W, hCanvas = H) {
+            const imgData = ctx.getImageData(0, 0, wCanvas, hCanvas);
+            const data = imgData.data;
+            const buf = new Uint8Array(wCanvas * hCanvas * 2);
+            for (let i = 0; i < wCanvas * hCanvas; i++) {
+                const r = data[i * 4];
+                const g = data[i * 4 + 1];
+                const b = data[i * 4 + 2];
+                const rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+                buf[i * 2] = (rgb565 >> 8) & 0xFF;
+                buf[i * 2 + 1] = rgb565 & 0xFF;
+            }
+            return buf;
+        }
+
+        function veAnhCover(ctx, img, wDich = W, hDich = H) {
+            ctx.clearRect(0, 0, wDich, hDich);
+            const tyLe = Math.max(wDich / img.width, hDich / img.height);
+            const w2 = img.width * tyLe;
+            const h2 = img.height * tyLe;
+            const x2 = (wDich - w2) / 2;
+            const y2 = (hDich - h2) / 2;
+            ctx.drawImage(img, x2, y2, w2, h2);
+        }
+
+        function apDungAnhMem(canvas, brightnessPercent, gammaScaled) {
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            const brightness = brightnessPercent / 100;
+            const gamma = gammaScaled / 100;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = dieuChinhKenh(data[i], brightness, gamma);
+                data[i + 1] = dieuChinhKenh(data[i + 1], brightness, gamma);
+                data[i + 2] = dieuChinhKenh(data[i + 2], brightness, gamma);
+            }
+            ctx.putImageData(imgData, 0, 0);
+        }
+
+        function dieuChinhKenh(v, brightness, gamma) {
+            const sauDoSang = Math.max(0, Math.min(255, v * brightness));
+            const chuanHoa = sauDoSang / 255;
+            return Math.max(0, Math.min(255, Math.pow(chuanHoa, gamma) * 255));
+        }
+
+        document.getElementById("inputAnh").addEventListener("change", e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = new Image();
+            img.onload = () => {
+                anhNguonTinh = img;
+                veLaiAnhTinh();
+            };
+            img.src = URL.createObjectURL(file);
+        });
+
+        function veLaiAnhTinh() {
+            if (!anhNguonTinh) return;
+            veAnhCover(ctxAnh, anhNguonTinh);
+            apDungAnhMem(canvasAnh, Number(document.getElementById("anhBrightness").value), Number(document.getElementById("anhGamma").value));
+        }
+
+        function guiAnhTinh() {
+            baoHieuDangDieuKhien();
+            if (!anhNguonTinh) {
+                alert("Vui long chon anh truoc.");
+                return;
+            }
+            const buf = canvasToRGB565(ctxAnh);
+            client.publish(T_MODE, "image");
+            client.publish(T_IMAGE, buf);
+            setStatus(`Da gui anh tinh (${buf.length} byte). Anh da duoc lam diu de tranh qua sang.`);
+        }
+
+        async function giaiMaDanhSachGif(files) {
+            if (!gifuctLib) {
+                document.getElementById("gifInfo").innerText = "Thu vien GIF chua tai xong, vui long doi them mot chut.";
+                return;
+            }
+            if (!files || files.length === 0) return;
+            document.getElementById("gifInfo").innerText = `Dang giai ma ${files.length} GIF...`;
+            nguonFrameGifCanvas = [];
+            let tongDelay = 0;
+            for (const file of files) {
+                const arrayBuffer = await file.arrayBuffer();
+                const gif = gifuctLib.parseGIF(arrayBuffer);
+                const frames = gifuctLib.decompressFrames(gif, true);
+                const fullCanvas = document.createElement("canvas");
+                fullCanvas.width = gif.lsd.width;
+                fullCanvas.height = gif.lsd.height;
+                const fullCtx = fullCanvas.getContext("2d", { willReadFrequently: true });
+                for (const frame of frames) {
+                    const frameImgData = fullCtx.createImageData(frame.dims.width, frame.dims.height);
+                    frameImgData.data.set(frame.patch);
+                    fullCtx.putImageData(frameImgData, frame.dims.left, frame.dims.top);
+                    const cloned = document.createElement("canvas");
+                    cloned.width = fullCanvas.width;
+                    cloned.height = fullCanvas.height;
+                    cloned.getContext("2d").drawImage(fullCanvas, 0, 0);
+                    nguonFrameGifCanvas.push(cloned);
+                    tongDelay += (frame.delay || 100);
+                    if (frame.disposalType === 2) {
+                        fullCtx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
+                    }
+                }
+            }
+            gifDelay = Math.round(tongDelay / Math.max(1, nguonFrameGifCanvas.length));
+            taoFrameGifDaXuLy();
+            document.getElementById("gifInfo").innerText = `Da giai ma ${nguonFrameGifCanvas.length} khung tu ${files.length} GIF, delay TB ${gifDelay}ms.`;
+        }
+
+        function taoFrameGifDaXuLy() {
+            danhSachFrameGif = [];
+            if (nguonFrameGifCanvas.length === 0) return;
+            const bright = Number(document.getElementById("gifBrightness").value);
+            const gamma = Number(document.getElementById("gifGamma").value);
+            for (const frame of nguonFrameGifCanvas) {
+                veAnhCover(ctxGif, frame);
+                apDungAnhMem(canvasGif, bright, gamma);
+                danhSachFrameGif.push(canvasToRGB565(ctxGif));
+            }
+        }
+
+        document.getElementById("inputGif").addEventListener("change", async e => {
+            const files = Array.from(e.target.files || []);
+            await giaiMaDanhSachGif(files);
+        });
+        document.getElementById("gifBrightness").addEventListener("input", () => {
+            capNhatLabelRange("gifBrightness", "lblGifBrightness");
+            taoFrameGifDaXuLy();
+        });
+        document.getElementById("gifGamma").addEventListener("input", () => {
+            capNhatLabelRange("gifGamma", "lblGifGamma", 100, "x");
+            taoFrameGifDaXuLy();
+        });
+
+        async function guiKhungCoXacNhan(idx, payload) {
+            const toiDaThuLai = 5;
+            const thoiGianCho = 1200;
+            for (let lan = 0; lan < toiDaThuLai; lan++) {
+                ackNhanDuoc = -1;
+                client.publish(T_GIF_FRAME, payload);
+                const batDau = Date.now();
+                while (Date.now() - batDau < thoiGianCho) {
+                    if (ackNhanDuoc === idx) return true;
+                    await new Promise(r => setTimeout(r, 15));
+                }
+            }
+            return false;
+        }
+
+        async function guiGifDong() {
+            baoHieuDangDieuKhien();
+            if (danhSachFrameGif.length === 0) {
+                alert("Vui long chon GIF truoc.");
+                return;
+            }
+            client.publish(T_MODE, "gif");
+            await new Promise(r => setTimeout(r, 150));
+            const meta = JSON.stringify({ frames: danhSachFrameGif.length, width: W, height: H, delay: gifDelay });
+            client.publish(T_GIF_META, meta);
+            await new Promise(r => setTimeout(r, 220));
+
+            let soLoi = 0;
+            for (let i = 0; i < danhSachFrameGif.length; i++) {
+                const frameData = danhSachFrameGif[i];
+                const payload = new Uint8Array(2 + frameData.length);
+                payload[0] = (i >> 8) & 0xFF;
+                payload[1] = i & 0xFF;
+                payload.set(frameData, 2);
+                const ok = await guiKhungCoXacNhan(i, payload);
+                if (!ok) soLoi++;
+                setStatus(`Dang gui GIF ${i + 1}/${danhSachFrameGif.length}${soLoi ? `, loi ${soLoi} khung` : ""}`);
+            }
+
+            baoHieuDangDieuKhien();
+            client.publish(T_GIF_DONE, "");
+            setStatus(soLoi === 0 ? "Da gui xong GIF." : `Gui xong GIF nhung co ${soLoi} khung chua ACK.`);
+        }
+
+        function guiCauHinhDongHo() {
+            baoHieuDangDieuKhien();
+            client.publish(T_MODE, "clock");
+            client.publish(T_CLOCK_CFG, JSON.stringify({
+                style: kieuDongHoChon,
+                color: document.getElementById("mauDongHo").value,
+                bgColor: document.getElementById("mauNenDongHo").value,
+                showDate: document.getElementById("hienNgayDuong").checked,
+                showLunar: document.getElementById("hienNgayAm").checked
+            }));
+            setStatus(`Da gui giao dien dong ho: ${kieuDongHoChon}`);
+        }
+
+        function renderClockCards() {
+            const wrap = document.getElementById("clockGrid");
+            wrap.innerHTML = "";
+            for (const style of clockStyles) {
+                const card = document.createElement("div");
+                card.className = "clock-card" + (style.id === kieuDongHoChon ? " selected" : "");
+                card.onclick = () => {
+                    kieuDongHoChon = style.id;
+                    renderClockCards();
+                };
+                const canvas = document.createElement("canvas");
+                canvas.width = W;
+                canvas.height = H;
+                canvas.className = "preview";
+                canvas.style.width = `${W * 2.6}px`;
+                canvas.style.height = `${H * 2.6}px`;
+                vePreviewDongHo(canvas.getContext("2d"), style.id, document.getElementById("mauDongHo").value || "#00ff88");
+                const p = document.createElement("p");
+                p.innerText = style.label;
+                card.appendChild(canvas);
+                card.appendChild(p);
+                wrap.appendChild(card);
+            }
+        }
+
+        function vePreviewDongHo(ctx, style, color) {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            const now = new Date();
+            const hh = String(now.getHours()).padStart(2, "0");
+            const mm = String(now.getMinutes()).padStart(2, "0");
+            const ss = String(now.getSeconds()).padStart(2, "0");
+
+            if (style === "analog") {
+                const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 3;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.stroke();
+                const hAngle = ((now.getHours() % 12) + now.getMinutes() / 60) * Math.PI / 6;
+                const mAngle = (now.getMinutes() + now.getSeconds() / 60) * Math.PI / 30;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.sin(hAngle) * r * 0.5, cy - Math.cos(hAngle) * r * 0.5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.sin(mAngle) * r * 0.8, cy - Math.cos(mAngle) * r * 0.8);
+                ctx.stroke();
+                return;
+            }
+
+            if (style === "ring") {
+                const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 3;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.font = "bold 10px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(`${hh}:${mm}`, cx, cy);
+                return;
+            }
+            if (style === "monthsplit") {
+                ctx.strokeRect(0, 0, W, H);
+                const leftW = Math.floor(W * 0.5);
+                ctx.beginPath();
+                ctx.moveTo(leftW, 0);
+                ctx.lineTo(leftW, H);
+                ctx.stroke();
+                ctx.font = "bold 10px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(`${hh}:${mm}`, leftW / 2, H / 2 - 2);
+                ctx.font = "7px Arial";
+                const d = new Date();
+                const first = new Date(d.getFullYear(), d.getMonth(), 1).getDay();
+                const idx = first + d.getDate() - 1;
+                const col = idx % 7;
+                const row = Math.floor(idx / 7);
+                const cw = Math.max(2, Math.floor((W - leftW - 2) / 7));
+                const ch = 5;
+                const x0 = leftW + 1 + col * cw;
+                const y0 = 3 + row * ch;
+                ctx.strokeRect(x0, y0, Math.max(2, cw - 1), 4);
+                return;
+            }
+
+            ctx.font = style === "minimal" ? "bold 15px Arial" : "bold 12px monospace";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            if (style === "neon") {
+                ctx.fillStyle = "rgba(0,0,0,0.35)";
+                ctx.fillRect(1, 4, W - 2, H - 8);
+                ctx.strokeStyle = color;
+                ctx.strokeRect(1, 4, W - 2, H - 8);
+                ctx.fillStyle = color;
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2 - 2);
+                ctx.font = "8px Arial";
+                ctx.fillText(ss, W / 2, H - 7);
+            } else if (style === "metro") {
+                ctx.fillStyle = color;
+                ctx.fillRect(2, 5, 8, H - 10);
+                ctx.fillRect(W - 10, 5, 8, H - 10);
+                ctx.fillStyle = color;
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2 - 2);
+                ctx.font = "8px Arial";
+                ctx.fillText(`${now.getDate()}/${now.getMonth() + 1}`, W / 2, H - 7);
+            } else if (style === "boxed") {
+                ctx.strokeRect(2, 2, W - 4, H - 4);
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2 - 2);
+                ctx.font = "8px Arial";
+                ctx.fillText(`${now.getDate()}/${now.getMonth() + 1}`, W / 2, H - 7);
+            } else if (style === "compact") {
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2 - 4);
+                ctx.font = "8px Arial";
+                ctx.fillText(ss, W / 2, H - 7);
+            } else if (style === "minimal") {
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2);
+            } else {
+                ctx.fillText(`${hh}:${mm}`, W / 2, H / 2 - 3);
+                ctx.font = "8px Arial";
+                ctx.fillText(`${now.getDate()}/${now.getMonth() + 1}/${String(now.getFullYear()).slice(-2)}`, W / 2, H - 7);
+            }
+        }
+
+        function damBaoWidgetNamTrongKhung() {
+            Object.values(layoutState.widgets).forEach(widget => {
+                widget.x = Math.max(0, Math.min(W - 1, widget.x));
+                widget.y = Math.max(0, Math.min(H - 1, widget.y));
+                widget.w = Math.max(4, Math.min(W - widget.x, widget.w));
+                widget.h = Math.max(4, Math.min(H - widget.y, widget.h));
+            });
+        }
+
+        function layWidgetDangHien() {
+            return Object.values(layoutState.widgets).filter(w => w.visible);
+        }
+
+        function dangGiaoNhau(a, b) {
+            return a.x < (b.x + b.w) && (a.x + a.w) > b.x && a.y < (b.y + b.h) && (a.y + a.h) > b.y;
+        }
+
+        function timDanhSachChongLen() {
+            const visible = layWidgetDangHien();
+            const overlapIds = new Set();
+            for (let i = 0; i < visible.length; i++) {
+                for (let j = i + 1; j < visible.length; j++) {
+                    if (dangGiaoNhau(visible[i], visible[j])) {
+                        overlapIds.add(visible[i].id);
+                        overlapIds.add(visible[j].id);
+                    }
+                }
+            }
+            return overlapIds;
+        }
+
+        function capNhatCanhBaoChongLen() {
+            const overlapIds = timDanhSachChongLen();
+            const label = document.getElementById("layoutWarning");
+            if (overlapIds.size > 0) {
+                label.innerText = `Canh bao: co ${overlapIds.size} doi tuong dang de len nhau. Bam "Tu dong canh deu" de sap xep nhanh.`;
+                label.style.color = "#ff8f8f";
+            } else {
+                label.innerText = "Bo cuc tot: khong co doi tuong de len nhau.";
+                label.style.color = "#89d2a8";
+            }
+            return overlapIds;
+        }
+
+        function tuDongCanhBoCuc() {
+            const visible = layWidgetDangHien();
+            if (visible.length === 0) return;
+            const gap = 1;
+            let x = 0;
+            let y = 0;
+            let rowH = 0;
+            visible.sort((a, b) => (a.type === "clock" ? -1 : a.type === "image" ? 0 : 1) - (b.type === "clock" ? -1 : b.type === "image" ? 0 : 1));
+            for (const w of visible) {
+                w.w = Math.max(4, Math.min(w.w, W));
+                w.h = Math.max(4, Math.min(w.h, H));
+                if (x + w.w > W) {
+                    x = 0;
+                    y += rowH + gap;
+                    rowH = 0;
+                }
+                if (y + w.h > H) {
+                    y = Math.max(0, H - w.h);
+                }
+                w.x = x;
+                w.y = y;
+                x += w.w + gap;
+                rowH = Math.max(rowH, w.h);
+            }
+            damBaoWidgetNamTrongKhung();
+            renderLayoutEditor();
+            setStatus("Da tu dong canh deu bo cuc de giam de len nhau.");
+        }
+
+        function renderLayoutEditor() {
+            layoutBg.width = W;
+            layoutBg.height = H;
+            layoutBgCtx.clearRect(0, 0, W, H);
+            layoutBgCtx.fillStyle = "#020202";
+            layoutBgCtx.fillRect(0, 0, W, H);
+
+            layoutStage.querySelectorAll(".layout-item").forEach(el => el.remove());
+            const overlapIds = timDanhSachChongLen();
+
+            Object.values(layoutState.widgets).forEach(widget => {
+                if (!widget.visible) return;
+                const el = document.createElement("div");
+                el.className = "layout-item" + (layoutState.selectedId === widget.id ? " selected" : "");
+                if (overlapIds.has(widget.id)) el.classList.add("overlap");
+                el.dataset.id = widget.id;
+                el.style.left = `${widget.x * SCALE}px`;
+                el.style.top = `${widget.y * SCALE}px`;
+                el.style.width = `${widget.w * SCALE}px`;
+                el.style.height = `${widget.h * SCALE}px`;
+
+                const badge = document.createElement("div");
+                badge.className = "badge";
+                badge.innerText = widget.type.toUpperCase();
+                el.appendChild(badge);
+
+                const content = document.createElement("div");
+                content.className = "content";
+                if (widget.type === "image" && widget.source) {
+                    if (widget.mediaType === "gif" && widget.gifFramesRaw.length > 0) {
+                        const gifCanvas = document.createElement("canvas");
+                        gifCanvas.className = "gif-preview-canvas";
+                        gifCanvas.width = Math.max(1, widget.w);
+                        gifCanvas.height = Math.max(1, widget.h);
+                        gifCanvas.style.width = "100%";
+                        gifCanvas.style.height = "100%";
+                        gifCanvas.style.imageRendering = "pixelated";
+                        veKhungGifPreview(widget, gifCanvas);
+                        content.appendChild(gifCanvas);
+                    } else {
+                        const img = document.createElement("img");
+                        img.src = widget.source;
+                        content.appendChild(img);
+                    }
+                } else if (widget.type === "clock") {
+                    content.innerHTML = `<div>${widget.style}<br>${String(new Date().getHours()).padStart(2, "0")}:${String(new Date().getMinutes()).padStart(2, "0")}</div>`;
+                } else {
+                    content.textContent = widget.type === "text"
+                        ? `${widget.text || "Text"}${widget.effect !== "static" ? ` (${widget.effect})` : ""}`
+                        : "Media";
+                }
+                el.appendChild(content);
+
+                const handle = document.createElement("div");
+                handle.className = "resize-handle";
+                handle.addEventListener("pointerdown", ev => batDauKeo(ev, widget.id, "resize"));
+                el.appendChild(handle);
+
+                el.addEventListener("pointerdown", ev => {
+                    if (ev.target === handle) return;
+                    batDauKeo(ev, widget.id, "move");
+                });
+
+                layoutStage.appendChild(el);
+            });
+
+            capNhatInspector();
+            capNhatCanhBaoChongLen();
+        }
+
+        function veKhungGifPreview(widget, canvas) {
+            if (!widget || widget.mediaType !== "gif" || !widget.gifFramesRaw.length) return;
+            const idx = Math.max(0, Math.min(widget.gifFramesRaw.length - 1, widget.gifPreviewIndex || 0));
+            const frame = widget.gifFramesRaw[idx];
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            veAnhCover(ctx, frame, canvas.width, canvas.height);
+        }
+
+        function capNhatGifPreviewTrongEditor() {
+            const widget = layoutState.widgets.image;
+            if (!widget.visible || widget.mediaType !== "gif" || widget.gifFramesRaw.length <= 1) return;
+            const now = Date.now();
+            if (!widget.gifPreviewLastMs) widget.gifPreviewLastMs = now;
+            const delay = Math.max(40, Number(widget.gifDelay) || 100);
+            if (now - widget.gifPreviewLastMs < delay) return;
+            widget.gifPreviewLastMs = now;
+            widget.gifPreviewIndex = (widget.gifPreviewIndex + 1) % widget.gifFramesRaw.length;
+
+            const gifCanvas = layoutStage.querySelector('.layout-item[data-id="image"] .gif-preview-canvas');
+            if (gifCanvas) veKhungGifPreview(widget, gifCanvas);
+        }
+
+        function themHoacChonWidget(type) {
+            const widget = layoutState.widgets[type];
+            widget.visible = true;
+            layoutState.selectedId = widget.id;
+            renderLayoutEditor();
+        }
+
+        function xoaWidgetDangChon() {
+            const id = layoutState.selectedId;
+            if (!id) return;
+            layoutState.widgets[id].visible = false;
+            layoutState.selectedId = null;
+            renderLayoutEditor();
+        }
+
+        function batDauKeo(ev, id, mode) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const widget = layoutState.widgets[id];
+            layoutState.selectedId = id;
+            layoutState.dragging = {
+                id,
+                mode,
+                startX: ev.clientX,
+                startY: ev.clientY,
+                originX: widget.x,
+                originY: widget.y,
+                originW: widget.w,
+                originH: widget.h
+            };
+            renderLayoutEditor();
+        }
+
+        function pointerToLogical(deltaPx) {
+            return Math.round(deltaPx / SCALE);
+        }
+
+        window.addEventListener("pointermove", ev => {
+            if (!layoutState.dragging) return;
+            const d = layoutState.dragging;
+            const widget = layoutState.widgets[d.id];
+            const dx = pointerToLogical(ev.clientX - d.startX);
+            const dy = pointerToLogical(ev.clientY - d.startY);
+
+            if (d.mode === "move") {
+                widget.x = Math.max(0, Math.min(W - widget.w, d.originX + dx));
+                widget.y = Math.max(0, Math.min(H - widget.h, d.originY + dy));
+            } else {
+                widget.w = Math.max(4, Math.min(W - widget.x, d.originW + dx));
+                widget.h = Math.max(4, Math.min(H - widget.y, d.originH + dy));
+            }
+            renderLayoutEditor();
+        });
+
+        window.addEventListener("pointerup", () => {
+            layoutState.dragging = null;
+        });
+
+        layoutStage.addEventListener("pointerdown", ev => {
+            if (ev.target === layoutStage || ev.target === layoutBg) {
+                layoutState.selectedId = null;
+                renderLayoutEditor();
+            }
+        });
+
+        function capNhatInspector() {
+            const id = layoutState.selectedId;
+            document.getElementById("khongCoMuc").classList.toggle("hidden", !!id);
+            document.getElementById("bangThuocTinh").classList.toggle("hidden", !id);
+            ["groupClock", "groupText", "groupImage"].forEach(x => document.getElementById(x).classList.add("hidden"));
+            if (!id) return;
+
+            const widget = layoutState.widgets[id];
+            document.getElementById("tenWidgetDangChon").innerText = widget.type.toUpperCase();
+            document.getElementById("insX").value = widget.x;
+            document.getElementById("insY").value = widget.y;
+            document.getElementById("insW").value = widget.w;
+            document.getElementById("insH").value = widget.h;
+
+            if (widget.type === "clock") {
+                document.getElementById("groupClock").classList.remove("hidden");
+                document.getElementById("insClockStyle").value = widget.style;
+                document.getElementById("insClockColor").value = widget.color;
+                document.getElementById("insClockBg").value = widget.bgColor;
+                document.getElementById("insClockDate").checked = widget.showDate;
+                document.getElementById("insClockLunar").checked = widget.showLunar;
+            } else if (widget.type === "text") {
+                document.getElementById("groupText").classList.remove("hidden");
+                document.getElementById("insTextContent").value = widget.text;
+                document.getElementById("insTextColor").value = widget.color;
+                document.getElementById("insTextBg").value = widget.bgColor;
+                document.getElementById("insTextAlign").value = widget.align;
+                document.getElementById("insTextEffect").value = widget.effect || "static";
+                document.getElementById("insTextSpeed").value = widget.speed || 4;
+                capNhatLabelRange("insTextSpeed", "lblInsTextSpeed", 1, "");
+            } else if (widget.type === "image") {
+                document.getElementById("groupImage").classList.remove("hidden");
+                document.getElementById("insImageBrightness").value = widget.brightness;
+                document.getElementById("insImageGamma").value = widget.gamma;
+                capNhatLabelRange("insImageBrightness", "lblInsImageBrightness");
+                capNhatLabelRange("insImageGamma", "lblInsImageGamma", 100, "x");
+            }
+        }
+
+        function capNhatTuInspector() {
+            const id = layoutState.selectedId;
+            if (!id) return;
+            const widget = layoutState.widgets[id];
+            widget.x = Number(document.getElementById("insX").value);
+            widget.y = Number(document.getElementById("insY").value);
+            widget.w = Number(document.getElementById("insW").value);
+            widget.h = Number(document.getElementById("insH").value);
+
+            if (widget.type === "clock") {
+                widget.style = document.getElementById("insClockStyle").value;
+                widget.color = document.getElementById("insClockColor").value;
+                widget.bgColor = document.getElementById("insClockBg").value;
+                widget.showDate = document.getElementById("insClockDate").checked;
+                widget.showLunar = document.getElementById("insClockLunar").checked;
+            } else if (widget.type === "text") {
+                widget.text = document.getElementById("insTextContent").value;
+                widget.color = document.getElementById("insTextColor").value;
+                widget.bgColor = document.getElementById("insTextBg").value;
+                widget.align = document.getElementById("insTextAlign").value;
+                widget.effect = document.getElementById("insTextEffect").value;
+                widget.speed = Number(document.getElementById("insTextSpeed").value);
+            } else if (widget.type === "image") {
+                widget.brightness = Number(document.getElementById("insImageBrightness").value);
+                widget.gamma = Number(document.getElementById("insImageGamma").value);
+            }
+            damBaoWidgetNamTrongKhung();
+            renderLayoutEditor();
+        }
+
+        document.getElementById("inputLayoutAnh").addEventListener("change", e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = new Image();
+            img.onload = () => {
+                const widget = layoutState.widgets.image;
+                widget.source = URL.createObjectURL(file);
+                widget.imageEl = img;
+                widget.mediaType = "image";
+                widget.gifFramesRaw = [];
+                widget.gifPreviewIndex = 0;
+                widget.gifPreviewLastMs = 0;
+                widget.visible = true;
+                layoutState.selectedId = widget.id;
+                renderLayoutEditor();
+            };
+            img.src = URL.createObjectURL(file);
+        });
+
+        document.getElementById("inputLayoutGif").addEventListener("change", async e => {
+            const files = Array.from(e.target.files || []);
+            if (!files.length) return;
+            if (!gifuctLib) {
+                alert("Thu vien GIF chua tai xong.");
+                return;
+            }
+            const widget = layoutState.widgets.image;
+            const frameCanvasList = [];
+            let tongDelay = 0;
+            for (const file of files) {
+                const arrayBuffer = await file.arrayBuffer();
+                const gif = gifuctLib.parseGIF(arrayBuffer);
+                const frames = gifuctLib.decompressFrames(gif, true);
+                const fullCanvas = document.createElement("canvas");
+                fullCanvas.width = gif.lsd.width;
+                fullCanvas.height = gif.lsd.height;
+                const fullCtx = fullCanvas.getContext("2d", { willReadFrequently: true });
+                for (const frame of frames) {
+                    const frameImgData = fullCtx.createImageData(frame.dims.width, frame.dims.height);
+                    frameImgData.data.set(frame.patch);
+                    fullCtx.putImageData(frameImgData, frame.dims.left, frame.dims.top);
+                    const cloned = document.createElement("canvas");
+                    cloned.width = fullCanvas.width;
+                    cloned.height = fullCanvas.height;
+                    cloned.getContext("2d").drawImage(fullCanvas, 0, 0);
+                    frameCanvasList.push(cloned);
+                    tongDelay += (frame.delay || 100);
+                    if (frame.disposalType === 2) {
+                        fullCtx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
+                    }
+                }
+            }
+
+            widget.source = URL.createObjectURL(files[0]);
+            widget.imageEl = null;
+            widget.mediaType = "gif";
+            widget.gifFramesRaw = frameCanvasList.slice(0, 60);
+            widget.gifDelay = Math.round(tongDelay / Math.max(1, frameCanvasList.length));
+            widget.gifPreviewIndex = 0;
+            widget.gifPreviewLastMs = Date.now();
+            widget.visible = true;
+            layoutState.selectedId = widget.id;
+            renderLayoutEditor();
+            setStatus(`GIF bo cuc: ghep ${files.length} GIF, ${widget.gifFramesRaw.length} khung, delay ${widget.gifDelay}ms`);
+        });
+
+        async function guiBoCucTuDo() {
+            baoHieuDangDieuKhien();
+            const clock = layoutState.widgets.clock;
+            const text = layoutState.widgets.text;
+            const image = layoutState.widgets.image;
+
+            const config = {
+                clock: {
+                    enabled: !!clock.visible,
+                    x: clock.x, y: clock.y, w: clock.w, h: clock.h,
+                    style: clock.style, color: clock.color, bgColor: clock.bgColor,
+                    showDate: clock.showDate, showLunar: clock.showLunar
+                },
+                text: {
+                    enabled: !!text.visible,
+                    x: text.x, y: text.y, w: text.w, h: text.h,
+                    content: text.text, color: text.color, bgColor: text.bgColor, align: text.align,
+                    effect: text.effect || "static",
+                    speed: text.speed || 4
+                },
+                image: {
+                    enabled: !!image.visible && (image.mediaType === "gif" ? image.gifFramesRaw.length > 0 : !!image.imageEl),
+                    type: image.mediaType || "image",
+                    x: image.x, y: image.y, w: image.w, h: image.h
+                }
+            };
+
+            client.publish(T_LAYOUT_CFG, JSON.stringify(config));
+            client.publish(T_MODE, "layout");
+
+            if (config.image.enabled) {
+                await new Promise(r => setTimeout(r, 120));
+                if (image.mediaType === "gif" && image.gifFramesRaw.length > 0) {
+                    const framesCanGui = image.gifFramesRaw.slice(0, 60);
+                    const meta = JSON.stringify({
+                        frames: framesCanGui.length,
+                        width: image.w,
+                        height: image.h,
+                        delay: image.gifDelay || 100
+                    });
+                    client.publish(T_LAYOUT_GIF_META, meta);
+                    await new Promise(r => setTimeout(r, 120));
+
+                    for (let i = 0; i < framesCanGui.length; i++) {
+                        const tmp = document.createElement("canvas");
+                        tmp.width = image.w;
+                        tmp.height = image.h;
+                        const tmpCtx = tmp.getContext("2d", { willReadFrequently: true });
+                        veAnhCover(tmpCtx, framesCanGui[i], image.w, image.h);
+                        apDungAnhMem(tmp, image.brightness, image.gamma);
+                        const frameRaw = canvasToRGB565(tmpCtx, image.w, image.h);
+                        const payload = new Uint8Array(2 + frameRaw.length);
+                        payload[0] = (i >> 8) & 0xFF;
+                        payload[1] = i & 0xFF;
+                        payload.set(frameRaw, 2);
+                        client.publish(T_LAYOUT_GIF_FRAME, payload);
+                        await new Promise(r => setTimeout(r, 14));
+                    }
+                    client.publish(T_LAYOUT_GIF_DONE, "");
+                } else if (image.imageEl) {
+                    const tmp = document.createElement("canvas");
+                    tmp.width = image.w;
+                    tmp.height = image.h;
+                    const tmpCtx = tmp.getContext("2d", { willReadFrequently: true });
+                    veAnhCover(tmpCtx, image.imageEl, image.w, image.h);
+                    apDungAnhMem(tmp, image.brightness, image.gamma);
+                    client.publish(T_LAYOUT_IMG, canvasToRGB565(tmpCtx, image.w, image.h));
+                }
+            }
+
+            setStatus("Da gui bo cuc tu do len bang LED.");
+        }
+
+        function napLuaChonClockVaoInspector() {
+            const select = document.getElementById("insClockStyle");
+            select.innerHTML = clockStyles.map(style => `<option value="${style.id}">${style.label}</option>`).join("");
+        }
+
+        capNhatLabelRange("doSangLed", "lblDoSangLed");
+        capNhatLabelRange("anhBrightness", "lblAnhBrightness");
+        capNhatLabelRange("anhGamma", "lblAnhGamma", 100, "x");
+        capNhatLabelRange("gifBrightness", "lblGifBrightness");
+        capNhatLabelRange("gifGamma", "lblGifGamma", 100, "x");
+        capNhatLabelRange("insTextSpeed", "lblInsTextSpeed", 1, "");
+        napLuaChonClockVaoInspector();
+        capNhatKichThuocCanvas();
+        renderClockCards();
+        renderLayoutEditor();
+        document.getElementById("mauDongHo").addEventListener("input", renderClockCards);
+        document.getElementById("mauNenDongHo").addEventListener("input", renderClockCards);
+        setInterval(() => {
+            renderClockCards();
+            if (layoutState.widgets.clock.visible) renderLayoutEditor();
+        }, 1000);
+        setInterval(() => {
+            capNhatGifPreviewTrongEditor();
+        }, 33);
+    </script>
+</body>
+
+</html>
